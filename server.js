@@ -15,12 +15,11 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// Initialize our music generator
-const musicGenerator = new AccelerometerMusicGenerator();
+// Initialize our data processor
+const dataProcessor = new AccelerometerMusicGenerator();
 
-// Store most recent data for client access
+// Store most recent data
 let recentAccelData = [];
-let isGenerating = false;
 
 // Webhook endpoint for Arduino Cloud
 app.post('/webhook', (req, res) => {
@@ -28,11 +27,9 @@ app.post('/webhook', (req, res) => {
     console.log('Received webhook data:', req.body);
     
     // Extract accelerometer data from webhook payload
-    // NOTE: Adjust this based on your actual Arduino Cloud data format
     let accelMagnitude;
     
     if (req.body.data && req.body.data.length > 0) {
-      // Example extraction - modify according to your actual data format
       accelMagnitude = req.body.data[0].value;
     } else if (req.body.value !== undefined) {
       accelMagnitude = req.body.value;
@@ -51,21 +48,9 @@ app.post('/webhook', (req, res) => {
         recentAccelData.shift();
       }
       
-      // Process the data if we're not already generating music
-      if (!isGenerating && recentAccelData.length >= 10) {
-        isGenerating = true;
-        
-        // In a real server environment, we can't directly play audio,
-        // but we can prepare the sequences for clients to fetch
-        musicGenerator.generateFromData(recentAccelData)
-          .then(sequence => {
-            console.log('Generated sequence with', sequence.notes.length, 'notes');
-            isGenerating = false;
-          })
-          .catch(err => {
-            console.error('Error generating music:', err);
-            isGenerating = false;
-          });
+      // Process the data
+      if (recentAccelData.length >= 10) {
+        dataProcessor.processData(recentAccelData);
       }
     }
     
@@ -78,27 +63,11 @@ app.post('/webhook', (req, res) => {
 
 // API endpoint to get the most recent accelerometer data
 app.get('/api/data', (req, res) => {
-  res.json({ data: recentAccelData });
-});
-
-// API endpoint to get music generated from recent data
-app.get('/api/music', async (req, res) => {
-  try {
-    if (recentAccelData.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'No data available' });
-    }
-    
-    const sequence = await musicGenerator.generateFromData(recentAccelData);
-    res.json({ 
-      status: 'success', 
-      sequence: sequence,
-      avgMagnitude: recentAccelData.reduce((sum, val) => sum + val, 0) / recentAccelData.length,
-      maxMagnitude: Math.max(...recentAccelData)
-    });
-  } catch (error) {
-    console.error('Error generating music from data:', error);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
+  const processedData = dataProcessor.getLatestData();
+  res.json({ 
+    rawData: recentAccelData,
+    processedData: processedData
+  });
 });
 
 // Serve the main application
@@ -107,14 +76,6 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  
-  // Initialize the music generator models
-  try {
-    await musicGenerator.loadModels();
-    console.log('Music generator models loaded successfully');
-  } catch (error) {
-    console.error('Failed to load music generator models:', error);
-  }
 });
