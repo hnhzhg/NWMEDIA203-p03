@@ -70,8 +70,8 @@ async function fetchLatestData() {
     const response = await fetch(`${BASE_URL}/api/data`);
     const result = await response.json();
     
-    if (result && result.data) {
-      accelData = result.data;
+    if (result && result.rawData) {
+      accelData = result.rawData;
       updateDataStats();
       updateVisualization();
       statusElement.textContent = 'Data updated successfully';
