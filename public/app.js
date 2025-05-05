@@ -118,6 +118,89 @@ function createVisualization() {
   }
 }
 
+// Add this stopMusic function after the createVisualization function
+
+// Stop the currently playing music
+function stopMusic() {
+  if (currentPlayer) {
+    if (currentPlayer.player) {
+      currentPlayer.player.stop();
+    }
+    
+    if (currentPlayer.synth) {
+      currentPlayer.synth.dispose();
+    }
+    
+    currentPlayer = null;
+    
+    // Clear any visual highlights
+    visualBars.forEach(bar => {
+      bar.classList.remove('playing');
+    });
+    
+    // Update player display
+    musicPlayerElement.innerHTML = '<div>No music playing</div>';
+    
+    statusElement.textContent = 'Music stopped';
+  }
+}
+
+// Complete the createSynth function that's missing its implementation
+function createSynth(avgMagnitude) {
+  // Map magnitude ranges to different synthesizer settings
+  let oscillatorType, attack, release;
+  
+  // Low movement (0.5-1.0): Soft, ambient sounds
+  if (avgMagnitude < 1.0) {
+    oscillatorType = 'sine';
+    attack = 0.3;
+    release = 2.0;
+  } 
+  // Medium movement (1.0-1.5): More defined, melodic sounds
+  else if (avgMagnitude < 1.5) {
+    oscillatorType = 'triangle';
+    attack = 0.1;
+    release = 1.0;
+  } 
+  // High movement (1.5-2.0): Sharp, energetic sounds
+  else {
+    oscillatorType = 'square';
+    attack = 0.05;
+    release = 0.7;
+  }
+  
+  // Create and configure the synth
+  const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+  synth.set({
+    oscillator: {
+      type: oscillatorType
+    },
+    envelope: {
+      attack: attack,
+      decay: 0.2,
+      sustain: 0.8,
+      release: release
+    }
+  });
+  
+  return synth;
+}
+
+// Add function to highlight a bar when a note plays
+function highlightBar(pitch) {
+  // Map the pitch to a visualization bar index
+  // Assuming pitches range from C3 (48) to C5 (72)
+  const normalizedPitch = Math.max(48, Math.min(72, pitch));
+  const index = Math.floor((normalizedPitch - 48) / 24 * visualBars.length);
+  
+  if (index >= 0 && index < visualBars.length) {
+    // Add a special class to highlight the bar
+    visualBars[index].classList.add('playing');
+    setTimeout(() => {
+      visualBars[index].classList.remove('playing');
+    }, 200); // Remove after 200ms
+  }
+}
 // Update the visualization with new data
 function updateVisualization() {
   if (!accelData || accelData.length === 0) return;
@@ -526,37 +609,37 @@ async function playMagentaMusic(sequence, avgMagnitude) {
 }
 
 // Create a synthesizer with parameters based on accelerometer data
-function createSynth(avgMagnitude) {
-  // Map magnitude ranges to different synthesizer settings
-  let oscillatorType, attack, release, effects = [];
+// function createSynth(avgMagnitude) {
+//   // Map magnitude ranges to different synthesizer settings
+//   let oscillatorType, attack, release, effects = [];
   
-  // Low movement (0.5-1.0): Soft, ambient sounds
-  if (avgMagnitude < 1.0) {
-    oscillatorType = 'sine';
-    attack = 0.3;
-    release = 2.0;
-    // Add reverb for spacious sound
-    effects.push(new Tone.Reverb({ decay: 5, wet: 0.6 }).toDestination());
-  } 
-  // Medium movement (1.0-1.5): More defined, melodic sounds
-  else if (avgMagnitude < 1.5) {
-    oscillatorType = 'triangle';
-    attack = 0.1;
-    release = 1.0;
-    // Add chorus for richness
-    effects.push(new Tone.Chorus(4, 2.5, 0.5).toDestination());
-  } 
-  // High movement (1.5-2.0): Sharp, energetic sounds
-  else {
-    oscillatorType = 'square';
-    attack = 0.05;
-    release = 0.7;
-    // Add distortion for edge
-    effects.push(new Tone.Distortion(0.3).toDestination());
-  }
+//   // Low movement (0.5-1.0): Soft, ambient sounds
+//   if (avgMagnitude < 1.0) {
+//     oscillatorType = 'sine';
+//     attack = 0.3;
+//     release = 2.0;
+//     // Add reverb for spacious sound
+//     effects.push(new Tone.Reverb({ decay: 5, wet: 0.6 }).toDestination());
+//   } 
+//   // Medium movement (1.0-1.5): More defined, melodic sounds
+//   else if (avgMagnitude < 1.5) {
+//     oscillatorType = 'triangle';
+//     attack = 0.1;
+//     release = 1.0;
+//     // Add chorus for richness
+//     effects.push(new Tone.Chorus(4, 2.5, 0.5).toDestination());
+//   } 
+//   // High movement (1.5-2.0): Sharp, energetic sounds
+//   else {
+//     oscillatorType = 'square';
+//     attack = 0.05;
+//     release = 0.7;
+//     // Add distortion for edge
+//     effects.push(new Tone.Distortion(0.3).toDestination());
+//   }
   
-  // Create and configure the synth
-}
+//   // Create and configure the synth
+// }
 
 
 async function generateMusic(accelDataArray) {
