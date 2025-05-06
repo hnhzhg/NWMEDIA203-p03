@@ -35,7 +35,8 @@ class AccelerometerDataProcessor {
         variability: 0,
         tempo: 60,
         timbre: {},
-        patterns: { type: 'insufficient-data' }
+        patterns: { type: 'insufficient-data' },
+        instrumentComplexity: { count: 1, instruments: ['piano'] }
       }
     };
   }
@@ -74,7 +75,10 @@ class AccelerometerDataProcessor {
         variability: variability,
         tempo: this.mapToTempo(avgMagnitude),
         timbre: this.mapToTimbreParams(avgMagnitude),
-        patterns: this.detectPatterns(accelData)
+        dynamics: this.mapToDynamics(accelData),
+        patterns: this.detectPatterns(accelData),
+        // Add instrumentation complexity mapping
+        instrumentComplexity: this.mapToInstrumentComplexity(avgMagnitude)
       }
     };
     
@@ -89,55 +93,316 @@ class AccelerometerDataProcessor {
     return Math.sqrt(variance);
   }
   
+  // Map accelerometer magnitude to tempo (BPM) - MORE DRAMATIC RANGE
   mapToTempo(magnitude) {
-    // Map 0.5-2.0 to 60-160 BPM (slow to fast)
-    return 60 + (magnitude - this.minAccel) * (100 / (this.maxAccel - this.minAccel));
+    // Map 0.5-2.0 to 40-180 BPM (slower to faster) for more dramatic difference
+    return 40 + (magnitude - this.minAccel) * (140 / (this.maxAccel - this.minAccel));
   }
   
+  // Map accelerometer magnitude to instrumentation complexity
+  mapToInstrumentComplexity(magnitude) {
+    // Low magnitude: 1-2 instruments, high magnitude: 3-5 instruments
+    const numInstruments = Math.max(1, Math.min(5, Math.floor(1 + (magnitude - 0.5) * 4)));
+    
+    // Define different instrument combinations based on complexity
+    const instrumentCombinations = {
+      1: ['piano'],
+      2: ['piano', 'bass'],
+      3: ['piano', 'bass', 'drums'],
+      4: ['piano', 'bass', 'drums', 'strings'],
+      5: ['piano', 'bass', 'drums', 'strings', 'brass']
+    };
+    
+    return {
+      count: numInstruments,
+      instruments: instrumentCombinations[numInstruments]
+    };
+  }
+  
+  // Map accelerometer magnitude to instrument/timbre parameters - ENHANCED CONTRAST
   mapToTimbreParams(magnitude) {
-    // Simple mapping: lower values use softer sounds, higher values use brighter sounds
-    const oscillatorType = magnitude < 1.0 ? 'sine' : 
-                          magnitude < 1.5 ? 'triangle' : 'square';
-                          
-    const attack = magnitude < 1.2 ? 0.2 : 0.05; // Faster attack for higher magnitudes
-    const release = magnitude < 1.2 ? 1.5 : 0.8;  // Longer release for lower magnitudes
+    let oscillatorType, attack, release, filterCutoff, resonance, effects;
+    
+    if (magnitude < 1.0) {
+      // Low intensity: soft, warm, mellow sounds
+      oscillatorType = 'sine';
+      attack = 0.4 - (magnitude - 0.5) * 0.2; // 0.4 to 0.3
+      release = 3.0 - (magnitude - 0.5) * 1.0; // 3.0 to 2.5
+      filterCutoff = 150 + (magnitude - 0.5) * 450; // 150Hz to 375Hz
+      resonance = 0.05;
+      effects = {
+        reverb: {
+          wet: 0.7 - (magnitude - 0.5) * 0.2, // 0.7 to 0.6
+          decay: 5.0 - (magnitude - 0.5) * 1.0 // 5.0 to 4.5
+        },
+        chorus: {
+          wet: 0.3,
+          frequency: 0.5,
+          depth: 0.7
+        }
+      };
+    } else if (magnitude < 1.5) {
+      // Medium intensity: balanced sounds
+      oscillatorType = 'triangle';
+      attack = 0.3 - (magnitude - 1.0) * 0.25; // 0.3 to 0.175
+      release = 2.5 - (magnitude - 1.0) * 1.7; // 2.5 to 1.65
+      filterCutoff = 375 + (magnitude - 1.0) * 1625; // 375Hz to 1187.5Hz
+      resonance = 0.2;
+      effects = {
+        reverb: {
+          wet: 0.6 - (magnitude - 1.0) * 0.3, // 0.6 to 0.45
+          decay: 4.5 - (magnitude - 1.0) * 2.5 // 4.5 to 3.25
+        },
+        delay: {
+          wet: 0.2 + (magnitude - 1.0) * 0.1, // 0.2 to 0.25
+          time: 0.3,
+          feedback: 0.2
+        }
+      };
+    } else {
+      // High intensity: bright, sharp, energetic sounds
+      oscillatorType = 'sawtooth';
+      attack = 0.175 - (magnitude - 1.5) * 0.155; // 0.175 to 0.02
+      release = 1.65 - (magnitude - 1.5) * 1.35; // 1.65 to 0.3
+      filterCutoff = 1187.5 + (magnitude - 1.5) * 3812.5; // 1187Hz to 5000Hz
+      resonance = 0.4 + (magnitude - 1.5) * 0.6; // 0.4 to 1.0
+      effects = {
+        distortion: {
+          wet: 0.0 + (magnitude - 1.5) * 0.6, // 0 to 0.6
+          amount: 0.2 + (magnitude - 1.5) * 0.5 // 0.2 to 0.7
+        },
+        delay: {
+          wet: 0.25 + (magnitude - 1.5) * 0.15, // 0.25 to 0.4
+          time: 0.16,
+          feedback: 0.3 + (magnitude - 1.5) * 0.3 // 0.3 to 0.6
+        }
+      };
+    }
     
     return {
       oscillatorType,
       attack,
-      release
+      release,
+      filterCutoff,
+      resonance,
+      effects
     };
   }
   
-  detectPatterns(accelData) {
-    if (accelData.length < 10) return { type: 'insufficient-data' };
+  // Map acceleration data to musical dynamics
+  mapToDynamics(accelData) {
+    // Calculate dynamics parameters based on data patterns
+    const variability = this.calculateVariability(accelData);
+    const trendDirection = this.calculateTrend(accelData);
+    const peakCount = this.countPeaks(accelData);
     
-    // Basic pattern detection
+    // Add more nuanced dynamics mapping
+    const avgMagnitude = accelData.reduce((sum, val) => sum + val, 0) / accelData.length;
+    
+    // Dynamics curve (0-1.0 scale)
+    let baseDynamics;
+    if (avgMagnitude < 1.0) {
+      // Soft with subtle variations (0.3-0.5)
+      baseDynamics = 0.3 + (avgMagnitude - 0.5) * 0.4;
+    } else if (avgMagnitude < 1.5) {
+      // Medium with moderate variations (0.5-0.7)
+      baseDynamics = 0.5 + (avgMagnitude - 1.0) * 0.4;
+    } else {
+      // Loud with dramatic variations (0.7-0.95)
+      baseDynamics = 0.7 + (avgMagnitude - 1.5) * 0.5;
+    }
+    
+    return {
+      variability,
+      trendDirection,
+      peakCount,
+      baseDynamics,
+      articulation: avgMagnitude < 1.0 ? 'legato' : 
+                    avgMagnitude < 1.5 ? 'normal' : 'staccato'
+    };
+  }
+  
+  // Calculate overall trend direction (-1 to 1)
+  calculateTrend(data) {
+    if (data.length < 5) return 0;
+    
+    // Simple linear regression to find slope
+    const n = data.length;
+    const indices = Array.from(Array(n).keys());
+    
+    const sumX = indices.reduce((sum, i) => sum + i, 0);
+    const sumY = data.reduce((sum, y) => sum + y, 0);
+    const sumXY = indices.reduce((sum, i) => sum + i * data[i], 0);
+    const sumXX = indices.reduce((sum, i) => sum + i * i, 0);
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    
+    // Normalize slope to -1 to 1 range
+    return Math.max(-1, Math.min(1, slope * 10));
+  }
+  
+  // Count peaks in the data (for rhythmic patterns)
+  countPeaks(data) {
+    if (data.length < 3) return 0;
+    
     let peakCount = 0;
-    for (let i = 1; i < accelData.length - 1; i++) {
-      if (accelData[i] > accelData[i-1] && accelData[i] > accelData[i+1] && accelData[i] > 1.3) {
+    for (let i = 1; i < data.length - 1; i++) {
+      if (data[i] > data[i-1] && data[i] > data[i+1] && data[i] > 1.0) {
         peakCount++;
       }
     }
     
-    const avgValue = accelData.reduce((sum, val) => sum + val, 0) / accelData.length;
-    const highValueCount = accelData.filter(val => val > 1.5).length;
+    return peakCount;
+  }
+  
+  // Detect patterns in accelerometer data
+  detectPatterns(accelData) {
+    if (accelData.length < 10) return { type: 'insufficient-data' };
     
-    let patternType = 'irregular';
-    if (peakCount > 3) {
-      patternType = 'spiky';
-    } else if (highValueCount > accelData.length * 0.5) {
-      patternType = 'sustained-high';
-    } else if (this.calculateVariability(accelData) < 0.2) {
+    // Analyze for repeating patterns
+    const isRegular = this.detectRegularPattern(accelData);
+    const hasSuddenSpikes = this.detectSuddenSpikes(accelData);
+    const hasSustainedHigh = this.detectSustainedHigh(accelData);
+    const hasSustainedLow = this.detectSustainedLow(accelData);
+    
+    // Determine primary pattern type with more categories
+    let patternType;
+    if (hasSustainedLow) {
+      patternType = 'calm';
+    } else if (isRegular) {
       patternType = 'regular';
+    } else if (hasSuddenSpikes && hasSustainedHigh) {
+      patternType = 'energetic';
+    } else if (hasSuddenSpikes) {
+      patternType = 'spiky';
+    } else if (hasSustainedHigh) {
+      patternType = 'sustained-high';
+    } else {
+      patternType = 'irregular';
     }
     
     return {
       type: patternType,
-      peakCount,
-      highValueCount,
-      averageValue: avgValue
+      isRegular,
+      hasSuddenSpikes,
+      hasSustainedHigh,
+      hasSustainedLow
     };
+  }
+  
+  // Detect if the pattern is regular/periodic
+  detectRegularPattern(data) {
+    // Simple algorithm to detect periodicity
+    const peaks = [];
+    for (let i = 1; i < data.length - 1; i++) {
+      if (data[i] > data[i-1] && data[i] > data[i+1] && data[i] > 1.0) {
+        peaks.push(i);
+      }
+    }
+    
+    if (peaks.length < 3) return false;
+    
+    // Calculate intervals between peaks
+    const intervals = [];
+    for (let i = 1; i < peaks.length; i++) {
+      intervals.push(peaks[i] - peaks[i-1]);
+    }
+    
+    // Check if intervals are consistent (within 25% variation)
+    const avgInterval = intervals.reduce((sum, val) => sum + val, 0) / intervals.length;
+    const isRegular = intervals.every(interval => 
+      Math.abs(interval - avgInterval) < 0.25 * avgInterval
+    );
+    
+    return isRegular;
+  }
+  
+  // Detect sudden spikes in the data
+  detectSuddenSpikes(data) {
+    let spikeCount = 0;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i] > 1.5 && data[i] - data[i-1] > 0.5) {
+        spikeCount++;
+      }
+    }
+    
+    return spikeCount >= 2;
+  }
+  
+  // Detect sustained high values
+  detectSustainedHigh(data) {
+    let consecutiveHighCount = 0;
+    let maxConsecutiveHigh = 0;
+    
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] > 1.5) {
+        consecutiveHighCount++;
+        maxConsecutiveHigh = Math.max(maxConsecutiveHigh, consecutiveHighCount);
+      } else {
+        consecutiveHighCount = 0;
+      }
+    }
+    
+    return maxConsecutiveHigh >= 4;
+  }
+  
+  // Detect sustained low values
+  detectSustainedLow(data) {
+    let consecutiveLowCount = 0;
+    let maxConsecutiveLow = 0;
+    
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] < 0.8) {
+        consecutiveLowCount++;
+        maxConsecutiveLow = Math.max(maxConsecutiveLow, consecutiveLowCount);
+      } else {
+        consecutiveLowCount = 0;
+      }
+    }
+    
+    return maxConsecutiveLow >= 6; // Longer sequence required for low
+  }
+  
+  // Generate test data with a target magnitude (enhanced version)
+  generateTestData(targetMagnitude = 1.0, variation = 0.2, count = 30) {
+    // Clamp the target magnitude to valid range
+    targetMagnitude = Math.max(this.minAccel, Math.min(this.maxAccel, targetMagnitude));
+    
+    // Generate data points around the target magnitude
+    const data = [];
+    
+    // Create some patterns based on the target magnitude
+    if (targetMagnitude < 1.0) {
+      // Low magnitude: smooth, gradual changes (calm pattern)
+      let currentValue = targetMagnitude - variation/2;
+      for (let i = 0; i < count; i++) {
+        // Gentle sine wave pattern
+        currentValue = targetMagnitude + Math.sin(i / 5) * variation/2;
+        data.push(Math.max(this.minAccel, currentValue));
+      }
+    } else if (targetMagnitude < 1.5) {
+      // Medium magnitude: moderate variations (regular pattern)
+      for (let i = 0; i < count; i++) {
+        // Alternating pattern with medium variation
+        const patternOffset = i % 4 === 0 ? variation/2 : 
+                             i % 4 === 2 ? -variation/2 : 0;
+        data.push(targetMagnitude + patternOffset);
+      }
+    } else {
+      // High magnitude: sharper variations with spikes (energetic pattern)
+      for (let i = 0; i < count; i++) {
+        // Base value with occasional spikes
+        let value = targetMagnitude - variation/2;
+        if (i % 5 === 0) {
+          value = Math.min(this.maxAccel, targetMagnitude + variation);
+        } else if (i % 7 === 0) {
+          value = Math.min(this.maxAccel, targetMagnitude + variation/2);
+        }
+        data.push(value);
+      }
+    }
+    
+    return data;
   }
   
   getLatestData() {
@@ -147,9 +412,6 @@ class AccelerometerDataProcessor {
 
 // Initialize our data processor
 const dataProcessor = new AccelerometerDataProcessor();
-
-// Process initial test data
-dataProcessor.processData(recentAccelData);
 
 // Webhook endpoint for Arduino Cloud
 app.post('/webhook', (req, res) => {
@@ -291,17 +553,15 @@ app.get('/api/musicData', (req, res) => {
   }
 });
 
-// Add test endpoint to generate sample data
+// Add enhanced test endpoint to generate sample data with specific magnitude
 app.get('/api/testData', (req, res) => {
-  // Generate some random test data
-  const testData = [];
-  for (let i = 0; i < 30; i++) {
-    // Generate values between 0.5 and 2.0
-    const randomValue = 0.5 + Math.random() * 1.5;
-    testData.push(randomValue);
-  }
+  // Get the target magnitude from the query parameter, default to 1.0
+  const targetMagnitude = parseFloat(req.query.magnitude || 1.0);
   
-  // Add to our data array
+  // Generate targeted test data
+  const testData = dataProcessor.generateTestData(targetMagnitude);
+  
+  // Replace the current data with the test data
   recentAccelData = testData;
   
   // Process the data
@@ -310,6 +570,7 @@ app.get('/api/testData', (req, res) => {
   res.json({ 
     status: 'success', 
     message: 'Test data generated',
+    targetMagnitude: targetMagnitude,
     data: testData
   });
 });

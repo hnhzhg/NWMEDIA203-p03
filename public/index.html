@@ -1,117 +1,542 @@
-<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Accelerometer Music Generator</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #f5f5f5;
-    }
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    h1 {
-      color: #333;
-      text-align: center;
-    }
-    .controls {
-      display: flex;
-      justify-content: center;
-      margin: 20px 0;
-      gap: 10px;
-    }
-    button {
-      padding: 10px 20px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    button:disabled {
-      background: #cccccc;
-      cursor: not-allowed;
-    }
-    .status {
-      text-align: center;
-      margin: 10px 0;
-      font-weight: bold;
-    }
-    .data-display {
-      margin: 20px 0;
-      padding: 15px;
-      background: #f9f9f9;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-    }
-    .visualization {
-      width: 100%;
-      height: 200px;
-      margin: 20px 0;
-      background: #f0f0f0;
-      border-radius: 4px;
-      overflow: hidden;
-      position: relative;
-    }
-    .bar {
-      position: absolute;
-      bottom: 0;
-      width: 10px;
-      background: #4CAF50;
-      transition: height 0.2s ease;
-    }
-    .music-player {
-      text-align: center;
-      margin: 20px 0;
-    }
-    .loading {
-      text-align: center;
-      margin: 20px 0;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accelerometer Music Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.23.1/dist/magentamusic.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root {
+            --primary-bg: linear-gradient(135deg, #e9c2ff 0%, #a1c4fd 100%);
+            --card-bg: #fff1f3;
+            --section-bg: #f8f9fa;
+            --text-color: #333;
+            --primary-color: #6a5af9;
+            --secondary-color: #5fe4c8;
+            --accent-color: #ff7eb6;
+            --light-text: #6c757d;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+            --border-radius: 16px;
+            --button-radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7fa;
+            color: var(--text-color);
+            line-height: 1.6;
+            padding-bottom: 40px;
+        }
+
+        .header {
+            background: var(--primary-bg);
+            padding: 30px 20px;
+            border-radius: 0 0 30px 30px;
+            margin-bottom: 20px;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #444;
+            margin-bottom: 4px;
+        }
+
+        .header-subtitle {
+            font-size: 16px;
+            color: #666;
+            font-weight: 400;
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+
+        h1, h2, h3 {
+            color: #444;
+        }
+
+        h1 {
+            font-size: 26px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card.accent {
+            background-color: var(--card-bg);
+        }
+
+        .status-box {
+            background-color: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 14px;
+            color: var(--light-text);
+        }
+
+        .step-container {
+            margin: 20px 0;
+        }
+
+        .step-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .steps {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .step {
+            flex: 1;
+            background-color: #e8f0fe;
+            padding: 15px;
+            border-radius: var(--button-radius);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .step-1 {
+            background-color: #85c8ff;
+            color: white;
+        }
+
+        .step-2 {
+            background-color: #a4a4ff;
+            color: white;
+        }
+
+        .step-3 {
+            background-color: #7eebb0;
+            color: white;
+        }
+
+        .step-number {
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .step-text {
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            border-radius: var(--button-radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-play {
+            background-color: #c4b1ff;
+            color: white;
+        }
+
+        .btn-stop {
+            background-color: #ffbccc;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .btn:disabled {
+            background-color: #e2e5e9;
+            color: #a8adb3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .visualization {
+            background-color: white;
+            height: 250px;
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-evenly;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .viz-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            height: 100%;
+            color: #ccc;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .viz-empty p {
+            margin-top: 10px;
+        }
+
+        .bar {
+            width: 12px;
+            height: 20%;
+            background: linear-gradient(to top, #85c8ff, #ffbccc);
+            border-radius: 4px 4px 0 0;
+            transition: height 0.3s ease, background 0.3s ease;
+            margin: 0 2px;
+        }
+
+        .bar.playing {
+            background: linear-gradient(to top, #ff7eb6, #ffcf85);
+            box-shadow: 0 0 8px rgba(255, 126, 182, 0.5);
+        }
+
+        .info-section {
+            margin-top: 30px;
+        }
+
+        .icon {
+            font-size: 20px;
+            display: inline-block;
+        }
+
+        /* Style adjustments for small screens */
+        @media (max-width: 576px) {
+            .steps {
+                flex-direction: column;
+            }
+
+            .step {
+                padding: 12px;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+        }
+
+        /* Animation for bars */
+        @keyframes pulse {
+            0% { transform: scaleY(1); }
+            50% { transform: scaleY(1.1); }
+            100% { transform: scaleY(1); }
+        }
+
+        .visualization.playing .bar {
+            animation: pulse 1s ease-in-out infinite;
+            animation-delay: calc(var(--i) * 0.1s);
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #e2e5e9;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .slider-value {
+            font-weight: bold;
+            color: var(--primary-color);
+            width: 40px;
+            text-align: center;
+        }
+
+        .select-container {
+            margin: 15px 0;
+        }
+
+        .select-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background-color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+
+        .instrument-indicators {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .instrument {
+            text-align: center;
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+            margin: 0 5px;
+        }
+
+        .instrument.active {
+            opacity: 1;
+        }
+
+        .instrument-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .instrument-name {
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Accelerometer Music Generator</h1>
-    
-    <div class="status" id="status">Connecting to server...</div>
-    
-    <div class="controls">
-      <button id="playMusic">Generate & Play Music</button>
-      <button id="fetchData">Fetch Latest Data</button>
-      <button id="stopMusic">Stop Music</button>
+    <div class="header">
+        <div class="container">
+            <h1 class="header-title">Note to Self</h1>
+            <p class="header-subtitle">Transform your activities into music</p>
+        </div>
     </div>
-    
-    <div class="data-display" id="dataStats">
-      <div>No accelerometer data available yet.</div>
-    </div>
-    
-    <div class="visualization" id="dataVisualization"></div>
-    
-    <div class="music-player" id="musicPlayer">
-      <div>Click "Generate & Play Music" to create music from the latest accelerometer data.</div>
-    </div>
-  </div>
 
-  <!-- Import libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.23.1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
-  
-  <!-- Our app script -->
-  <script src="app.js"></script>
+    <div class="container">
+        <h1>Accelerometer Music Generator</h1>
+        <p>Create unique music based on your device's movement</p>
+
+        <div class="card accent">
+            <h2>Status</h2>
+            <div class="status-box" id="status">
+                No accelerometer data available yet.
+            </div>
+
+            <div class="step-container">
+                <div class="step-title">Step 1-3: Record & Generate</div>
+                <div class="steps">
+                    <div class="step step-1" id="startRecording">
+                        <div class="step-number">1. Start</div>
+                        <div class="step-text">Recording</div>
+                    </div>
+                    <div class="step step-2" id="fetchData">
+                        <div class="step-number">2. Fetch Data</div>
+                        <div class="step-text"></div>
+                    </div>
+                    <div class="step step-3" id="generateMusic">
+                        <div class="step-number">3. Generate</div>
+                        <div class="step-text">Music</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-play" id="playMusic">
+                    <span class="icon">▶</span> Play Music
+                </button>
+                <button class="btn btn-stop" id="stopMusic" disabled>
+                    <span class="icon">■</span> Stop Music
+                </button>
+            </div>
+
+            <div class="select-container">
+                <label for="musicStyle">Music Style:</label>
+                <select id="musicStyle">
+                    <option value="default">Default</option>
+                    <option value="jazz">Jazz</option>
+                    <option value="electronic">Electronic</option>
+                    <option value="ambient">Ambient</option>
+                    <option value="orchestral">Orchestral</option>
+                    <option value="pop">Pop</option>
+                </select>
+            </div>
+
+            <div class="slider-container">
+                <label for="testDataSlider">Test Data Intensity:</label>
+                <div class="slider-row">
+                    <span>0.5</span>
+                    <input type="range" id="testDataSlider" class="slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                    <span>2.0</span>
+                    <span class="slider-value" id="currentValue">1.0</span>
+                </div>
+                <button class="btn" id="testData">Generate Test Data</button>
+            </div>
+
+            <div class="instrument-indicators">
+                <div class="instrument" id="instrument-piano">
+                    <div class="instrument-icon">🎹</div>
+                    <div class="instrument-name">Piano</div>
+                </div>
+                <div class="instrument" id="instrument-bass">
+                    <div class="instrument-icon">🎸</div>
+                    <div class="instrument-name">Bass</div>
+                </div>
+                <div class="instrument" id="instrument-drums">
+                    <div class="instrument-icon">🥁</div>
+                    <div class="instrument-name">Drums</div>
+                </div>
+                <div class="instrument" id="instrument-strings">
+                    <div class="instrument-icon">🎻</div>
+                    <div class="instrument-name">Strings</div>
+                </div>
+                <div class="instrument" id="instrument-brass">
+                    <div class="instrument-icon">🎺</div>
+                    <div class="instrument-name">Brass</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Visualization</h2>
+            <div class="visualization" id="dataVisualization">
+                <div class="viz-empty">
+                    <span class="icon">📊</span>
+                    <p>No data available. Click "Fetch Data" to collect accelerometer data</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>How It Works</h2>
+            <p>This app connects to your Node.js server to receive accelerometer data from your device. The motion patterns are analyzed to create unique music that reflects your movement intensity:</p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li><strong>Low movement (0.5-1.0):</strong> Slow, ambient music with gentle instruments</li>
+                <li><strong>Medium movement (1.0-1.5):</strong> Balanced, melodic music with moderate tempo</li>
+                <li><strong>High movement (1.5-2.0):</strong> Fast, energetic music with full instrumentation</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Test data slider
+        const slider = document.getElementById('testDataSlider');
+        const currentValue = document.getElementById('currentValue');
+        
+        if (slider && currentValue) {
+            slider.addEventListener('input', () => {
+                currentValue.textContent = slider.value;
+            });
+        }
+        
+        // Generate empty visualization with placeholder
+        function initializeVisualization() {
+            const visualizationElement = document.getElementById('dataVisualization');
+            if (!visualizationElement) return;
+            
+            // Check if we already have bars
+            if (visualizationElement.querySelector('.bar')) return;
+            
+            // Remove placeholder on first data
+            const emptyState = visualizationElement.querySelector('.viz-empty');
+            if (emptyState) {
+                visualizationElement.removeChild(emptyState);
+            }
+            
+            // Create bars
+            for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.setProperty('--i', i);
+                bar.style.height = '0%';
+                visualizationElement.appendChild(bar);
+            }
+        }
+        
+        // Initialize the visualization when fetch data is clicked
+        const fetchDataButton = document.getElementById('fetchData');
+        if (fetchDataButton) {
+            fetchDataButton.addEventListener('click', () => {
+                initializeVisualization();
+                // The rest would be handled by the app.js fetchLatestData function
+            });
+        }
+        
+        // Update instrument indicators (this would be called from app.js)
+        function updateInstrumentIndicators(instruments) {
+            document.querySelectorAll('.instrument').forEach(elem => {
+                elem.classList.remove('active');
+            });
+            
+            if (instruments && Array.isArray(instruments)) {
+                instruments.forEach(instrument => {
+                    const elem = document.getElementById(`instrument-${instrument}`);
+                    if (elem) {
+                        elem.classList.add('active');
+                    }
+                });
+            }
+        }
+        
+        // Simulate activation on page load for demo purposes
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simulate instruments
+            updateInstrumentIndicators(['piano', 'bass']);
+        });
+    </script>
 </body>
 </html>
