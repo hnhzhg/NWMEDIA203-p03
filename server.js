@@ -347,3 +347,84 @@ app.post('/api/accelerometer', (req, res) => {
     dataPoints: minLength
   });
 });
+
+// Add these API endpoints to your server.js file to support music generation
+
+// API endpoint to provide data for music generation
+app.get('/api/musicData', (req, res) => {
+  // If there's no accelerometer data, return an error
+  if (!accelerometerData || accelerometerData.length === 0) {
+    return res.json({
+      status: 'error',
+      message: 'No accelerometer data available'
+    });
+  }
+  
+  // Calculate average magnitude
+  let avgMagnitude = 0;
+  let magnitudeArray = [];
+  
+  // Handle both array and object formats of accelerometerData
+  if (Array.isArray(accelerometerData)) {
+    // Handle array format
+    magnitudeArray = accelerometerData.map(point => point.magnitude);
+    avgMagnitude = magnitudeArray.reduce((sum, val) => sum + val, 0) / magnitudeArray.length;
+  } else if (accelerometerData.magnitude && Array.isArray(accelerometerData.magnitude)) {
+    // Handle object format with magnitude array
+    magnitudeArray = accelerometerData.magnitude;
+    avgMagnitude = magnitudeArray.reduce((sum, val) => sum + val, 0) / magnitudeArray.length;
+  } else {
+    // Default values if data format is unexpected
+    magnitudeArray = [1.0, 1.1, 1.2, 1.3, 1.2, 1.1, 1.0];
+    avgMagnitude = 1.1;
+  }
+  
+  // Calculate variability
+  const squaredDiffs = magnitudeArray.map(val => Math.pow(val - avgMagnitude, 2));
+  const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / magnitudeArray.length;
+  const variability = Math.sqrt(variance);
+  
+  // Count peaks
+  let peakCount = 0;
+  for (let i = 1; i < magnitudeArray.length - 1; i++) {
+    if (magnitudeArray[i] > magnitudeArray[i-1] && 
+        magnitudeArray[i] > magnitudeArray[i+1] && 
+        magnitudeArray[i] > 1.3) {
+      peakCount++;
+    }
+  }
+  
+  // Determine pattern type
+  let patternType;
+  if (peakCount > 3) {
+    patternType = 'spiky';
+  } else if (magnitudeArray.filter(val => val > 1.5).length > magnitudeArray.length * 0.5) {
+    patternType = 'sustained-high';
+  } else if (variability < 0.2) {
+    patternType = 'regular';
+  } else {
+    patternType = 'irregular';
+  }
+  
+  // Calculate tempo (60-160 BPM based on magnitude)
+  const tempo = 60 + (avgMagnitude - 0.5) * (100 / 1.5);
+  
+  // Return the processed data for music generation
+  res.json({
+    status: 'success',
+    accelerometerData: magnitudeArray,
+    processedData: {
+      stats: {
+        average: avgMagnitude,
+        max: Math.max(...magnitudeArray),
+        min: Math.min(...magnitudeArray),
+        variability: variability,
+        peakCount: peakCount,
+        tempo: tempo,
+        patterns: {
+          type: patternType
+        }
+      }
+    }
+  });
+});
