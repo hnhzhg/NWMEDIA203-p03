@@ -620,6 +620,8 @@ async function generateMusicWithMagenta(accelData, processedData, style = 'defau
   // Create seed sequence based on accelerometer data
   const seedSequence = createSeedSequence(accelData, stats);
   
+  validateSequence(seedSequence);
+
   // Set parameters based on movement patterns
   const temperature = 0.8 + (stats.average - 0.5) * (0.8 / 1.5); // 0.8-1.6
   const steps = Math.floor(64 + (stats.average - 0.5) * (96 / 1.5)); // 64-160 steps
@@ -898,6 +900,20 @@ function highlightMultipleAxes(pitch) {
     visualBarsZ[zIndex].classList.add('playing');
     setTimeout(() => visualBarsZ[zIndex].classList.remove('playing'), 200);
   }
+}
+
+function validateSequence(sequence) {
+  const MIN_PITCH = 21;
+  const MAX_PITCH = 108;
+
+  if (!sequence || !sequence.notes) return sequence;
+
+  sequence.notes.forEach(note => {
+    note.pitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, note.pitch));
+    note.velocity = Math.max(0, Math.min(127, note.velocity));
+  });
+
+  return sequence;
 }
 
 console.log('Music generation code loaded');
