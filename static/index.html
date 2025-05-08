@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Accelerometer Music Visualizer</title>
+   <style>
+       body {
+           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+           margin: 0;
+           padding: 20px;
+           background-color: #f5f5f5;
+           color: #333;
+       }
+       .container {
+           max-width: 1000px;
+           margin: 0 auto;
+           background-color: white;
+           border-radius: 10px;
+           padding: 20px;
+           box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+       }
+       h1 {
+           color: #2c3e50;
+           text-align: center;
+       }
+       .dashboard {
+           display: flex;
+           flex-wrap: wrap;
+           gap: 20px;
+           margin-top: 30px;
+       }
+       .card {
+           flex: 1 1 300px;
+           padding: 15px;
+           border-radius: 8px;
+           box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+           background-color: white;
+       }
+       .chart-container {
+           width: 100%;
+           height: 300px;
+           margin-top: 20px;
+       }
+       .controls {
+           display: flex;
+           justify-content: center;
+           gap: 10px;
+           margin: 20px 0;
+       }
+       button {
+           padding: 10px 20px;
+           background-color: #3498db;
+           color: white;
+           border: none;
+           border-radius: 5px;
+           cursor: pointer;
+           transition: background-color 0.3s;
+       }
+       button:hover {
+           background-color: #2980b9;
+       }
+       button:disabled {
+           background-color: #95a5a6;
+           cursor: not-allowed;
+       }
+       .note-display {
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           height: 100px;
+           font-size: 24px;
+           margin-top: 20px;
+       }
+       .note-bar {
+           height: 100%;
+           background-color: #3498db;
+           transition: width 0.2s, height 0.2s, background-color 0.2s;
+       }
+       .status {
+           text-align: center;
+           margin-top: 10px;
+           font-weight: bold;
+       }
+       .note-info {
+           text-align: center;
+           margin-top: 20px;
+       }
+       .piano-key {
+           display: inline-block;
+           width: 40px;
+           height: 120px;
+           background-color: white;
+           border: 1px solid #333;
+           margin-right: -4px;
+           position: relative;
+           vertical-align: top;
+       }
+       .piano-key.black {
+           background-color: #333;
+           width: 24px;
+           height: 80px;
+           margin-left: -12px;
+           margin-right: -12px;
+           z-index: 1;
+       }
+       .piano-key.active {
+           background-color: #3498db;
+       }
+       .piano {
+           display: flex;
+           justify-content: center;
+           margin-top: 30px;
+           height: 120px;
+       }
+   </style>
+</head>
+<body>
+   <div class="container">
+       <h1>Accelerometer Music Visualizer</h1>
+      
+       <div class="controls">
+           <button id="playBtn">Generate 20s Music</button>
+           <button id="stopBtn" disabled>Stop</button>
+       </div>
+      
+       <div class="status" id="status">Ready</div>
+      
+       <div class="dashboard">
+           <div class="card">
+               <h2>Accelerometer Data</h2>
+               <div class="chart-container" id="accelChart"></div>
+           </div>
+          
+           <div class="card">
+               <h2>Sound Visualization</h2>
+               <div class="note-info" id="noteInfo">No note playing</div>
+               <div class="piano" id="piano">
+                   <!-- Piano keys will be added by JavaScript -->
+               </div>
+           </div>
+       </div>
+   </div>
+  
+   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+   <script src="app.js"></script>
+</body>
+</html>
