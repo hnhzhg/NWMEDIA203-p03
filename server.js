@@ -1,218 +1,95 @@
-// server.js - Express server to receive Arduino Cloud webhooks
-
+// server.js
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
-
-// Initialize Express app
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// Middleware
+// Configure CORS
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
-app.use(bodyParser.json());
-app.use(express.static('public'));
 
-// Store most recent data
-let recentAccelData = [];
+// Add explicit CORS headers middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+});
 
-// Simple data processor (without Magenta/Tone.js dependencies)
-class AccelerometerDataProcessor {
-  constructor() {
-    this.minAccel = 0.5;
-    this.maxAccel = 2.0;
-    this.latestData = {
-      data: [],
-      stats: {
-        average: 0,
-        maximum: 0,
-        minimum: 0,
-        variability: 0,
-        tempo: 60,
-        timbre: {},
-        patterns: { type: 'insufficient-data' }
-      }
-    };
-  }
-  
-  // Calculate magnitude from X, Y, Z components
-  calculateMagnitude(x, y, z) {
-    return Math.sqrt(x * x + y * y + z * z);
-  }
-  
-  processData(accelData) {
-    console.log('Processing data:', accelData);
-    
-    if (!Array.isArray(accelData)) {
-      console.warn('Invalid data format: not an array');
-      return this.latestData;
-    }
-    
-    if (accelData.length === 0) {
-      console.warn('No data to process');
-      return this.latestData;
-    }
-    
-    // Calculate statistics from the data
-    const avgMagnitude = accelData.reduce((sum, val) => sum + val, 0) / accelData.length;
-    const maxMagnitude = Math.max(...accelData);
-    const minMagnitude = Math.min(...accelData);
-    const variability = this.calculateVariability(accelData);
-    
-    // Store processed data
-    this.latestData = {
-      data: accelData,
-      stats: {
-        average: avgMagnitude,
-        maximum: maxMagnitude,
-        minimum: minMagnitude,
-        variability: variability,
-        tempo: this.mapToTempo(avgMagnitude),
-        timbre: this.mapToTimbreParams(avgMagnitude),
-        patterns: this.detectPatterns(accelData)
-      }
-    };
-    
-    console.log('Processed data:', this.latestData);
-    return this.latestData;
-  }
-  
-  calculateVariability(data) {
-    const mean = data.reduce((sum, val) => sum + val, 0) / data.length;
-    const squaredDiffs = data.map(val => Math.pow(val - mean, 2));
-    const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / data.length;
-    return Math.sqrt(variance);
-  }
-  
-  mapToTempo(magnitude) {
-    // Map 0.5-2.0 to 60-160 BPM (slow to fast)
-    return 60 + (magnitude - this.minAccel) * (100 / (this.maxAccel - this.minAccel));
-  }
-  
-  mapToTimbreParams(magnitude) {
-    // Simple mapping: lower values use softer sounds, higher values use brighter sounds
-    const oscillatorType = magnitude < 1.0 ? 'sine' : 
-                          magnitude < 1.5 ? 'triangle' : 'square';
-                          
-    const attack = magnitude < 1.2 ? 0.2 : 0.05; // Faster attack for higher magnitudes
-    const release = magnitude < 1.2 ? 1.5 : 0.8;  // Longer release for lower magnitudes
-    
-    return {
-      oscillatorType,
-      attack,
-      release
-    };
-  }
-  
-  detectPatterns(accelData) {
-    if (accelData.length < 10) return { type: 'insufficient-data' };
-    
-    // Basic pattern detection
-    let peakCount = 0;
-    for (let i = 1; i < accelData.length - 1; i++) {
-      if (accelData[i] > accelData[i-1] && accelData[i] > accelData[i+1] && accelData[i] > 1.3) {
-        peakCount++;
-      }
-    }
-    
-    const avgValue = accelData.reduce((sum, val) => sum + val, 0) / accelData.length;
-    const highValueCount = accelData.filter(val => val > 1.5).length;
-    
-    let patternType = 'irregular';
-    if (peakCount > 3) {
-      patternType = 'spiky';
-    } else if (highValueCount > accelData.length * 0.5) {
-      patternType = 'sustained-high';
-    } else if (this.calculateVariability(accelData) < 0.2) {
-      patternType = 'regular';
-    }
-    
-    return {
-      type: patternType,
-      peakCount,
-      highValueCount,
-      averageValue: avgValue
-    };
-  }
-  
-  getLatestData() {
-    return this.latestData;
-  }
-}
+// Parse JSON and URL-encoded bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Initialize our data processor
-const dataProcessor = new AccelerometerDataProcessor();
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Process initial test data
-dataProcessor.processData(recentAccelData);
+// Store accelerometer data
+let accelerometerData = [];
 
-// Webhook endpoint for Arduino Cloud
+// Webhook endpoint
 app.post('/webhook', (req, res) => {
-  console.log('Received webhook request:', req.method, req.url);
+  console.log('Received webhook request');
   console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
-  
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    return res.status(200).send();
-  }
-  
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+
   try {
-    // Handle the Python script's data format
+    // Handle the webhook.site data format
     if (req.body && req.body.values && Array.isArray(req.body.values)) {
       const accelValues = {};
       
       // Extract X, Y, Z values
       req.body.values.forEach(entry => {
         if (entry.name && entry.value !== undefined) {
-          accelValues[entry.name] = parseFloat(entry.value);
+          // Handle both accel_X and Accelerometer_X formats
+          const normalizedName = entry.name.toLowerCase().replace('accel_', 'accelerometer_');
+          accelValues[normalizedName] = parseFloat(entry.value);
         }
       });
       
       console.log('Extracted accelerometer values:', accelValues);
       
       // Calculate magnitude if we have all three components
-      if (accelValues['Accelerometer_X'] !== undefined && 
-          accelValues['Accelerometer_Y'] !== undefined && 
-          accelValues['Accelerometer_Z'] !== undefined) {
+      if (accelValues['accelerometer_x'] !== undefined && 
+          accelValues['accelerometer_y'] !== undefined && 
+          accelValues['accelerometer_z'] !== undefined) {
         
-        const magnitude = dataProcessor.calculateMagnitude(
-          accelValues['Accelerometer_X'],
-          accelValues['Accelerometer_Y'],
-          accelValues['Accelerometer_Z']
+        const magnitude = Math.sqrt(
+          Math.pow(accelValues['accelerometer_x'], 2) +
+          Math.pow(accelValues['accelerometer_y'], 2) +
+          Math.pow(accelValues['accelerometer_z'], 2)
         );
         
-        console.log(`Calculated magnitude: ${magnitude}`);
+        // Store the data with timestamp
+        const dataPoint = {
+          timestamp: new Date().toISOString(),
+          x: accelValues['accelerometer_x'],
+          y: accelValues['accelerometer_y'],
+          z: accelValues['accelerometer_z'],
+          magnitude: magnitude
+        };
         
-        // Add to our data array
-        recentAccelData.push(magnitude);
+        accelerometerData.push(dataPoint);
         
-        // Keep only the most recent 100 values
-        if (recentAccelData.length > 100) {
-          recentAccelData.shift();
+        // Keep only the most recent 1000 data points
+        if (accelerometerData.length > 1000) {
+          accelerometerData = accelerometerData.slice(-1000);
         }
         
-        // Process the data
-        dataProcessor.processData(recentAccelData);
+        console.log(`Stored data point: ${JSON.stringify(dataPoint)}`);
         
-        res.header('Access-Control-Allow-Origin', '*');
         res.status(200).json({ 
           status: 'success', 
-          message: 'Data received and processed',
-          magnitude: magnitude,
-          components: accelValues
+          message: 'Data received and stored',
+          dataPoint: dataPoint
         });
       } else {
         console.warn('Missing accelerometer components:', accelValues);
-        res.header('Access-Control-Allow-Origin', '*');
         res.status(400).json({ 
           status: 'error', 
           message: 'Missing accelerometer components',
@@ -221,7 +98,6 @@ app.post('/webhook', (req, res) => {
       }
     } else {
       console.warn('Invalid data format:', req.body);
-      res.header('Access-Control-Allow-Origin', '*');
       res.status(400).json({ 
         status: 'error', 
         message: 'Invalid data format',
@@ -230,7 +106,6 @@ app.post('/webhook', (req, res) => {
     }
   } catch (error) {
     console.error('Error processing webhook:', error);
-    res.header('Access-Control-Allow-Origin', '*');
     res.status(500).json({ 
       status: 'error', 
       message: error.message,
@@ -239,88 +114,39 @@ app.post('/webhook', (req, res) => {
   }
 });
 
-// API endpoint to get the most recent accelerometer data
+// API endpoint to get all stored accelerometer data
 app.get('/api/data', (req, res) => {
-  try {
-    const processedData = dataProcessor.getLatestData();
-    
-    console.log('Sending data:', {
-      rawData: recentAccelData,
-      processedData: processedData
-    });
-    
-    res.header('Access-Control-Allow-Origin', '*');
-    res.json({ 
-      rawData: recentAccelData,
-      processedData: processedData
-    });
-  } catch (error) {
-    console.error('Error in /api/data endpoint:', error);
-    res.header('Access-Control-Allow-Origin', '*');
-    res.status(500).json({ 
-      status: 'error', 
-      message: 'Error processing data',
-      error: error.message 
-    });
-  }
-});
-
-// Add a simple endpoint to get data for music generation
-// The actual music generation will happen in the browser
-app.get('/api/musicData', (req, res) => {
-  if (recentAccelData.length < 10) {
-    return res.status(400).json({ 
-      status: 'error', 
-      message: 'Not enough accelerometer data to generate music' 
-    });
-  }
-  
-  try {
-    const processedData = dataProcessor.getLatestData();
-    
-    // Don't generate music here, just provide the processed data
-    // for the client to generate music in the browser
-    res.json({ 
-      status: 'success', 
-      accelerometerData: recentAccelData,
-      processedData: processedData
-    });
-  } catch (error) {
-    console.error('Error preparing music data:', error);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-});
-
-// Add test endpoint to generate sample data
-app.get('/api/testData', (req, res) => {
-  // Generate some random test data
-  const testData = [];
-  for (let i = 0; i < 30; i++) {
-    // Generate values between 0.5 and 2.0
-    const randomValue = 0.5 + Math.random() * 1.5;
-    testData.push(randomValue);
-  }
-  
-  // Add to our data array
-  recentAccelData = testData;
-  
-  // Process the data
-  dataProcessor.processData(recentAccelData);
-  
   res.json({ 
-    status: 'success', 
-    message: 'Test data generated',
-    data: testData
+    data: accelerometerData,
+    count: accelerometerData.length
   });
 });
 
-// Serve the main application
+// API endpoint to get the most recent data point
+app.get('/api/latest', (req, res) => {
+  const latest = accelerometerData[accelerometerData.length - 1];
+  res.json({ 
+    latest: latest || null
+  });
+});
+
+// API endpoint to clear stored data
+app.post('/api/clear', (req, res) => {
+  accelerometerData = [];
+  res.json({ 
+    status: 'success',
+    message: 'Data cleared',
+    count: 0
+  });
+});
+
+// Serve the main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
   console.log('Waiting for data...');
 });
+

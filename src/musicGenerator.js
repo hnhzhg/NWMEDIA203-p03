@@ -311,52 +311,63 @@ class AccelerometerMusicGenerator {
   }
   
   // Create a seed sequence from accelerometer data
-  createSeedSequence(accelData, stats) {
-    // Quantization settings
-    const qpm = stats.tempo;
-    const stepsPerQuarter = 4;
+createSeedSequence(accelData, stats) {
+  // Quantization settings
+  const qpm = stats.tempo;
+  const stepsPerQuarter = 4;
+  
+  // Create a new sequence
+  const sequence = {
+    quantizationInfo: { stepsPerQuarter },
+    notes: [],
+    totalQuantizedSteps: 16
+  };
+  
+  // Sample points for creating notes
+  const samplingRate = Math.floor(accelData.length / 8);
+  let step = 0;
+  
+  // Create a wider pitch range for more dramatic contrast
+  for (let i = 0; i < accelData.length; i += samplingRate) {
+    const magnitude = accelData[i];
     
-    // Create a new sequence
-    const sequence = {
-      quantizationInfo: { stepsPerQuarter },
-      notes: [],
-      totalQuantizedSteps: 16
-    };
+    // Map magnitude to pitch with more dramatic scaling
+    // Range expanded from C2 (36) to C6 (84) for more range
+    const basePitch = 36 + Math.floor((magnitude - 0.5) * (48 / 1.5));
     
-    // Sample points for creating notes
-    const samplingRate = Math.floor(accelData.length / 8);
-    let step = 0;
-    
-    for (let i = 0; i < accelData.length; i += samplingRate) {
-      const magnitude = accelData[i];
-      
-      // Map magnitude to pitch (higher magnitude = higher pitch)
-      // Range from C3 (48) to C5 (72)
-      const basePitch = 48 + Math.floor((magnitude - 0.5) * (24 / 1.5));
-      
-      // Add some variation based on pattern type
-      let pitch = basePitch;
-      if (stats.patterns.type === 'spiky' && magnitude > 1.5) {
-        // For spikes, add occasional higher notes
-        pitch += 7; // Perfect fifth higher
-      }
-      
-      // Map magnitude to note duration (higher magnitude = shorter notes)
-      const durationSteps = Math.max(1, Math.floor(4 - (magnitude - 0.5) * 2));
-      
-      sequence.notes.push({
-        pitch: pitch,
-        quantizedStartStep: step,
-        quantizedEndStep: step + durationSteps,
-        velocity: 80 + Math.floor((magnitude - 0.5) * (47 / 1.5)) // 80-127
-      });
-      
-      step += durationSteps;
+    // Add more variation based on pattern type
+    let pitch = basePitch;
+    if (stats.patterns.type === 'spiky' && magnitude > 1.5) {
+      // For spikes, add more dramatic jumps
+      pitch += 12; // Full octave higher for more dramatic effect
+    } else if (stats.patterns.type === 'regular' && i % 2 === 0) {
+      // For regular patterns, add some melodic interest
+      pitch += 4; // Add a major third on alternating notes
     }
     
-    sequence.totalQuantizedSteps = step;
-    return sequence;
+    // Map magnitude to note duration with more extreme differences
+    const durationSteps = magnitude < 1.0 ? 6 : // Longer notes for low movement
+                         magnitude < 1.5 ? 3 : // Medium notes for medium movement
+                         1; // Very short notes for high movement
+    
+    // More dramatic velocity scaling
+    const velocity = magnitude < 1.0 ? 60 : // Softer for low movement
+                    magnitude < 1.5 ? 90 : // Medium for medium movement
+                    110; // Louder for high movement
+    
+    sequence.notes.push({
+      pitch: pitch,
+      quantizedStartStep: step,
+      quantizedEndStep: step + durationSteps,
+      velocity: velocity
+    });
+    
+    step += durationSteps;
   }
+  
+  sequence.totalQuantizedSteps = step;
+  return sequence;
+}
   
   // Apply style-specific adjustments to the generated music
   applyMusicStyle(sequence, style, stats) {
